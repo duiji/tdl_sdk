@@ -1569,7 +1569,7 @@ DLL_EXPORT CVI_S32 CVI_TDL_Set_MaskOutlinePoint(VIDEO_FRAME_INFO_S *frame,
                                                 cvtdl_object_t *obj_meta);
 
 /**
- * @brief Detection 图书二维码检测
+ * @brief Detection 大图滑动窗检测
  *
  * @param handle An TDL SDK handle.
  * @param frame Input video frame.
@@ -1578,8 +1578,15 @@ DLL_EXPORT CVI_S32 CVI_TDL_Set_MaskOutlinePoint(VIDEO_FRAME_INFO_S *frame,
  * @return int Return CVI_TDL_SUCCESS on success.
  */
 DLL_EXPORT CVI_S32 CVI_TDL_Detection_Windows(const cvitdl_handle_t handle, VIDEO_FRAME_INFO_S *frame,
-                                     CVI_TDL_SUPPORTED_MODEL_E model_index, cvtdl_object_t *obj);
+                                             CVI_TDL_SUPPORTED_MODEL_E model_index, cvtdl_object_t *obj);
 
+
+/**
+ * 根据坐标剪切图像
+ * 供条形码识别
+ */
+DLL_EXPORT CVI_S32 CVI_TDL_CropImage_ZbarData(VIDEO_FRAME_INFO_S *frame, char *dst_img_data,
+                                              cvtdl_object_info_t *info, float scale, int threshold);
 /**
  * zbar
  */

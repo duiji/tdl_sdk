@@ -16,7 +16,6 @@ class YoloV8Detection final : public DetectionBase {
   ~YoloV8Detection();
   int inference(VIDEO_FRAME_INFO_S *srcFrame, cvtdl_object_t *obj_meta) override;
   int windows_inference(VIDEO_FRAME_INFO_S *srcFrame, cvtdl_object_t *obj_meta) override;
-  //int zbarDecode(VIDEO_FRAME_INFO_S *srcFrame, cvtdl_object_info_t *info, char *zbarInfo) override;
 
   bool allowExportChannelAttribute() const override { return true; }
 
@@ -32,7 +31,7 @@ class YoloV8Detection final : public DetectionBase {
                          const int frame_height, cvtdl_object_t *obj_meta);
 
   void decode_bbox_feature_map(int stride, int anchor_idx, std::vector<float> &decode_box);
-  void postProcess(Detections &dets, int frame_width, int frame_height, cvtdl_object_t *obj_meta, bool rescale);
+  void postProcess(Detections &dets, int frame_width, int frame_height, cvtdl_object_t *obj_meta);
   std::map<std::string, std::string> out_names_;
 
   // if output seperate featuremap

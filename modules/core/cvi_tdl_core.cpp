@@ -1955,9 +1955,6 @@ CVI_S32 CVI_TDL_Set_ClipPostprocess(float **text_features, int text_features_num
   return CVI_FAILURE;
 }
 
-/**
- * 图书 二维码
- */
 CVI_S32 CVI_TDL_Detection_Windows(const cvitdl_handle_t handle, VIDEO_FRAME_INFO_S *frame,
                           CVI_TDL_SUPPORTED_MODEL_E model_index, cvtdl_object_t *obj) {
 
@@ -1994,6 +1991,40 @@ CVI_S32 CVI_TDL_Detection_Windows(const cvitdl_handle_t handle, VIDEO_FRAME_INFO
   }
 }
 
+CVI_S32 CVI_TDL_CropImage_ZbarData(VIDEO_FRAME_INFO_S *frame, char *dst_img_data,
+                                  cvtdl_object_info_t *info, float scale, int threshold) {
+    cvtdl_image_t tmp_image;
+    memset(&tmp_image, 0, sizeof(cvtdl_image_t));
+    bool cvtRGB888 = true;
+    crop_image(frame, &tmp_image, &info->bbox, cvtRGB888);
+
+    uint32_t h = tmp_image.height, w = tmp_image.width, s = tmp_image.stride[0];
+    uint8_t *p = tmp_image.pix[0];
+    cv::Mat image(h, w, CV_8UC3, p, s);
+
+    //放大
+    cv::Mat scaleImg;
+    cv::resize(image, scaleImg, cv::Size(), scale, scale, cv::INTER_LINEAR);
+
+    //灰度
+    cv::Mat grayImg;
+    cv::cvtColor(scaleImg, grayImg, cv::COLOR_BGR2GRAY);
+
+    //二值图像
+    cv::Mat binImg;
+    int thre = cv::threshold(grayImg, binImg, 0, 255, cv::THRESH_OTSU);
+    printf("THRESH_OTSU =: %d\n", thre);
+    cv::threshold(grayImg, binImg, threshold, 255, cv::THRESH_BINARY);
+
+    uint8_t* img_data = binImg.data;
+
+    // 将数据拷贝到dst_img_data
+    memcpy(dst_img_data, img_data, h * w);
+
+    CVI_TDL_Free(&tmp_image);
+    return CVI_TDL_SUCCESS;
+}
+ 
 /**
  * zbar
  */

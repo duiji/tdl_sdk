@@ -152,156 +152,103 @@ int YoloV8Detection::inference(VIDEO_FRAME_INFO_S *srcFrame, cvtdl_object_t *obj
 }
 
 /**
- * 滑动窗检测
+ * 大图滑动窗检测
  */
 int YoloV8Detection::windows_inference(VIDEO_FRAME_INFO_S *srcFrame, cvtdl_object_t *obj_meta) {
-  CVI_SHAPE shape = getInputShape(0);
-  //////////////////////////////////
-  //将一帧切割
-  CVI_S32 s32Ret = CVI_SUCCESS;
-  //1.初始
-  //算法训练的长宽 640 * 640
-  const int  algo_width = shape.dim[3]; 
-  const int  algo_height = shape.dim[2];
-  //传入帧长宽 1920 * 1080
-  //暂时只有200万像素 后续会增加到 800万
-  const int  frame_width = srcFrame->stVFrame.u32Width;
-  const int  frame_height = srcFrame->stVFrame.u32Height; 
+    CVI_SHAPE shape = getInputShape(0);
+    //将一帧切割
+    CVI_S32 s32Ret = CVI_SUCCESS;
+    //1.初始
+    //算法训练的长宽 640 * 640
+    const int  algo_width = shape.dim[3]; 
+    const int  algo_height = shape.dim[2];
+    //传入帧长宽 1920 * 1080
+    //暂时只有200万像素 后续会增加到 800万
+    const int  frame_width = srcFrame->stVFrame.u32Width;
+    const int  frame_height = srcFrame->stVFrame.u32Height; 
 
-  //水平 百分之30重叠
-  const int x_percent = 30;
-  //垂直 百分之0重叠
-  const int y_percent = 0;
-  //水平方向步长
-  int stride_x = algo_width * (100 - x_percent) / 100;
-  //垂直方向步长
-  int stride_y = algo_height * (100 - y_percent) / 100;
+    //水平 百分之30重叠
+    const int x_percent = 30;
+    //垂直 百分之0重叠
+    const int y_percent = 30;
+    //水平方向步长
+    int stride_x = algo_width * (100 - x_percent) / 100;
+    //垂直方向步长
+    int stride_y = algo_height * (100 - y_percent) / 100;
 
-  Detections vec_obj;
-  int run_ai_count = 0;
-  int all_det_num = 0;
-  for (int y = 0; y < frame_height; y += stride_y) {
-    if (y + algo_height > frame_height) {
-      y = frame_height - algo_height;
-    }    
+    Detections vec_obj;
 
-    for (int x = 0; x < frame_width; x += stride_x) {
-      if (x + algo_width > frame_width) {
-        x = frame_width - algo_width;
-      }
+    //算法调用的次数
+    int run_ai_count = 0;
+    int all_det_num = 0;
+    for (int y = 0; y < frame_height; y += stride_y) {
+        if (y + algo_height > frame_height) {
+          y = frame_height - algo_height;
+        }    
 
-      VIDEO_FRAME_INFO_S subFrame;
+        for (int x = 0; x < frame_width; x += stride_x) {
+            if (x + algo_width > frame_width) {
+                x = frame_width - algo_width;
+            }
 
-      VPSS_CROP_INFO_S cropAttr;
-      cropAttr.bEnable = true;
-      cropAttr.stCropRect = {x, y, algo_width, algo_height};
-      VPSS_CHN_ATTR_S chnAttr;
-      VPSS_CHN_DEFAULT_HELPER(&chnAttr, algo_width, algo_height, PIXEL_FORMAT_RGB_888, false);
-      s32Ret = mp_vpss_inst->sendCropChnFrame(srcFrame, &cropAttr, &chnAttr, 1);
-      
-      s32Ret = mp_vpss_inst->getFrame(&subFrame, 0, 2000);
+            VIDEO_FRAME_INFO_S subFrame;
 
-      std::vector<VIDEO_FRAME_INFO_S *> frames = {&subFrame};
-      int ret = run(frames);
-      if (ret != CVI_TDL_SUCCESS) {
-        return ret;
-      }
+            VPSS_CROP_INFO_S cropAttr;
+            cropAttr.bEnable = true;
+            cropAttr.stCropRect = {x, y, algo_width, algo_height};
+            VPSS_CHN_ATTR_S chnAttr;
+            VPSS_CHN_DEFAULT_HELPER(&chnAttr, algo_width, algo_height, PIXEL_FORMAT_RGB_888, false);
+            s32Ret = mp_vpss_inst->sendCropChnFrame(srcFrame, &cropAttr, &chnAttr, 1);
+            s32Ret = mp_vpss_inst->getFrame(&subFrame, 0, 2000);
 
-      int det_num = 0;
+            std::vector<VIDEO_FRAME_INFO_S *> frames = {&subFrame};
+            int ret = run(frames);
+            if (ret != CVI_TDL_SUCCESS) {
+              return ret;
+            }
 
-      det_num = outputParser_windowsDetect(frame_width, frame_height, &vec_obj);
+            int det_num = 0;
+            det_num = outputParser_windowsDetect(frame_width, frame_height, &vec_obj);
 
-      // 对于检测到的做坐标转换,转换到原图
-      for (int j = 0; j < det_num; j++) {
-          PtrDectRect &det = vec_obj[all_det_num + j];
-          det->x1 += x;
-          det->y1 += y;
-          det->x2 += x;
-          det->y2 += y;
-          //printf("x1=%f y1=%f x2=%f y2=%f score=%f \n", det->x1, det->y1, det->x2, det->y2, det->score);
-      }
+            // 对于检测到的做坐标转换,转换到原图
+            for (int j = 0; j < det_num; j++) {
+                PtrDectRect &det = vec_obj[all_det_num + j];
+                det->x1 += x;
+                det->y1 += y;
+                det->x2 += x;
+                det->y2 += y;
+                //printf("x1=%f y1=%f x2=%f y2=%f score=%f \n", det->x1, det->y1, det->x2, det->y2, det->score);
+            }
 
-      all_det_num += det_num;
+            all_det_num += det_num;
 
-      // 释放帧
-      CVI_VPSS_ReleaseChnFrame(0, 0, &subFrame);
+            // 释放帧
+            CVI_VPSS_ReleaseChnFrame(0, 0, &subFrame);
 
-      run_ai_count ++;
-      if (x + algo_width >= frame_width){
-        break;
-      }
-    }
+            run_ai_count ++;
+            if (x + algo_width >= frame_width){
+              break;
+            }
+        }
 
-    if (y + algo_height >= frame_height){
-      break;
-    }
-  }
-
-  postProcess(vec_obj, frame_width, frame_height, obj_meta, false);
-
-  model_timer_.TicToc("post");
-  return CVI_TDL_SUCCESS;
-}
-
-/*
-// zbar接口
-std::set<std::string> decode(const cv::Mat image) {
-    // 创建 ZBar 图像扫描器
-    zbar::ImageScanner scanner;
-
-    scanner.set_config(zbar::ZBAR_QRCODE, zbar::ZBAR_CFG_ENABLE, 1);
-
-    // 将 OpenCV 图像转换为 ZBar 图像
-    zbar::Image zbarImage(image.cols, image.rows, "Y800", image.data, image.cols * image.rows);
-
-    // 扫描条形码和二维码
-    int n = scanner.scan(zbarImage);
-
-    // 解析扫描结果
-    std::set<std::string> decodedTextSet;
-    if (n > 0) {
-        for (auto symbol = zbarImage.symbol_begin(); symbol != zbarImage.symbol_end(); ++symbol) {
-            // 获取解码结果
-            decodedTextSet.insert(symbol->get_data());
+        if (y + algo_height >= frame_height){
+          break;
         }
     }
-    return decodedTextSet;
+
+    //printf("windows_inference ai run count=%d obj=%d\n", run_ai_count, vec_obj.size());
+
+    Detections final_dets = nms_multi_class(vec_obj, m_model_nms_threshold); 
+
+    convert_det_struct(final_dets, obj_meta, shape.dim[2], shape.dim[3]);
+    obj_meta->width = frame_width;
+    obj_meta->height = frame_height;
+
+    //printf("windows_inference ai run over \n");
+
+    model_timer_.TicToc("post");
+    return CVI_TDL_SUCCESS;
 }
-*/
-
-/*
-int YoloV8Detection::zbarDecode(VIDEO_FRAME_INFO_S *srcFrame, cvtdl_object_info_t *info, char *zbarInfo) {
-  printf("YoloV8Detection:zbarDecode \n");
-  CVI_S32 s32Ret = CVI_SUCCESS;
-
-  cvtdl_image_t tmp_image;
-  memset(&tmp_image, 0, sizeof(cvtdl_image_t));
-  bool cvtRGB888 = true;
-  crop_image(srcFrame, &tmp_image, &info->bbox, cvtRGB888);
-
-  uint32_t h = tmp_image.height, w = tmp_image.width, s = tmp_image.stride[0];
-  uint8_t *p = tmp_image.pix[0];
-  cv::Mat image(h, w, CV_8UC3, p, s);
-  cv::Mat image_gray;
-  cv::cvtColor(image, image_gray, cv::COLOR_RGB2GRAY);
-
-  std::set<std::string> qr_code_set = decode(image_gray);
-
-  // 用来存储拼接后的字符串
-  std::string combinedInfo;
-
-    // 遍历集合并拼接字符串
-  for (const auto& info : qr_code_set) {
-      combinedInfo += info + "; ";  // 用分号和空格分隔每个字符串
-  }
-
-  std::strcpy(zbarInfo, combinedInfo.c_str());
-
-  //清空
-
-  return CVI_TDL_SUCCESS;
-}
-*/
 
 // the bbox featuremap shape is b x 4*regmax x h x w
 void YoloV8Detection::decode_bbox_feature_map(int stride, int anchor_idx,
@@ -428,7 +375,7 @@ void YoloV8Detection::outputParser(const int image_width, const int image_height
       }
     }
   }
-  postProcess(vec_obj, frame_width, frame_height, obj_meta, true);
+  postProcess(vec_obj, frame_width, frame_height, obj_meta);
 }
 
 void YoloV8Detection::parseDecodeBranch(const int image_width, const int image_height,
@@ -508,10 +455,11 @@ void YoloV8Detection::parseDecodeBranch(const int image_width, const int image_h
       vec_obj.push_back(det);
     }
   }
-  postProcess(vec_obj, frame_width, frame_height, obj_meta, true);
+  postProcess(vec_obj, frame_width, frame_height, obj_meta);
 }
+
 void YoloV8Detection::postProcess(Detections &dets, int frame_width, int frame_height,
-                                  cvtdl_object_t *obj_meta, bool rescale) {                           
+                                  cvtdl_object_t *obj_meta) {                           
   Detections final_dets = nms_multi_class(dets, m_model_nms_threshold); 
 
   CVI_SHAPE shape = getInputShape(0);
@@ -519,7 +467,6 @@ void YoloV8Detection::postProcess(Detections &dets, int frame_width, int frame_h
 
   if (!hasSkippedVpssPreprocess()) {
     for (uint32_t i = 0; i < obj_meta->size; ++i) {
-      if(rescale){
         obj_meta->info[i].bbox = box_rescale(
           frame_width, 
           frame_height, 
@@ -528,9 +475,6 @@ void YoloV8Detection::postProcess(Detections &dets, int frame_width, int frame_h
           obj_meta->info[i].bbox, 
           meta_rescale_type_e::RESCALE_CENTER
         );
-      } else {
-        obj_meta->info[i].bbox = obj_meta->info[i].bbox;
-      }
     }
     obj_meta->width = frame_width;
     obj_meta->height = frame_height;
